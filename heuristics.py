@@ -5,6 +5,7 @@ from Flow import Flow
 class Solver():
     def __init__(self, instance):
         self.instance = instance
+        self.cache = {}
     
     def solve(self, criteria = "max_cap", order = None):
         
@@ -38,9 +39,44 @@ class Solver():
             node = self.instance.nodes_list[next_node_id]
             #update node SFL
             node.decrease_SFL()
-            
-    def get_path_bfs(self, demand, criteria = "max_cap"):
 
+    def check_path(self, flow):
+        
+        prev_edge = None
+        for edge_id in flow.edge_ids:
+            edge = self.instance.edges_list[edge_id]
+
+            # Check capacity
+            if flow.flow_rate > edge.capacity:
+                return False
+
+            # Check GFL
+            if self.instance.groups[edge.group_id].GFL <= 0:
+                return False
+
+            # Check SFL
+            if self.instance.nodes_list[edge.start_id].SFL <= 0:
+                return False
+            if self.instance.nodes_list[edge.end_id].SFL <= 0:
+                return False
+
+            # Check constrained
+            if prev_edge and edge.is_constrained(prev_edge):
+                return False
+
+            prev_edge = edge
+        
+        return True
+
+    def get_path_bfs(self, demand, criteria = "max_cap"):
+        if (demand.start_id, demand.end_id) in self.cache:
+            flow = Flow(demand, self.cache[(demand.start_id, demand.end_id)])
+            if self.check_path(flow):
+                print(self.cache)
+                return flow
+                
+        if self.instance.nodes_list[demand.start_id].SFL <= 0:
+            return None
         visited = set() 
         queue= deque()
   
@@ -57,6 +93,7 @@ class Solver():
             # then return true
             if n == demand.end_id:
                 flow = Flow(demand, cur_path)
+                self.cache[(demand.start_id, demand.end_id)] = cur_path.copy()
                 return flow
 
             #  Else, continue to do BFS
@@ -89,7 +126,7 @@ class Solver():
                 continue
 
             #Verify group gfl
-            if self.instance.groups[edge.group_id].GFL == 0:
+            if self.instance.groups[edge.group_id].GFL <= 0:
                 continue 
 
             # Verify edge capacity

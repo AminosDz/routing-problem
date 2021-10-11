@@ -112,7 +112,7 @@ class Solver():
         for demand in sorted_demands:
             if time.time() - tic < time_limit:
                 flow = self.get_path_bfs(demand, criteria=criteria)
-                if flow:
+                if flow and self.check_path(flow):
                     flows_list.append(flow)
                     self.update_graph(flow)
             else:
@@ -176,18 +176,18 @@ class Solver():
             flow = Flow(demand, self.cache[(demand.start_id, demand.end_id)])
             if self.check_path(flow):
                 return flow
-                
+
         if self.instance.nodes_list[demand.start_id].SFL <= 0:
             return None
         visited = set() 
         queue= deque()
-  
+
         # Mark the source node as visited and enqueue it
         queue.append((demand.start_id, []))
         visited.add(demand.start_id)
         edges_list = []
         while queue:
- 
+
             #Dequeue a vertex from queue
             n, cur_path = queue.popleft()
             
@@ -200,7 +200,6 @@ class Solver():
 
             #  Else, continue to do BFS
             for i in self.instance.nodes_list[n].neighbors:
-                
                 if i not in visited and self.instance.nodes_list[i].SFL > 0:
                     edges_n_i = self.instance.nodes_list[n].neighbors[i]
                     #print(cur_path)
@@ -209,13 +208,13 @@ class Solver():
                         prev_edge, criteria = criteria)
 
                     if chosen_edge:
-                        cur_path = cur_path.copy()
-                        cur_path.append(chosen_edge.edge_id)
-                        queue.append((i, cur_path))
+                        new_path = cur_path.copy()
+                        new_path.append(chosen_edge.edge_id)
+                        #self.cache(start_id, i) = new_path
+                        queue.append((i, new_path))
                         visited.add(i)
         # If BFS is complete without visited d
         return None
-    
     
     def choose_edge_bfs(self, edges, demand, prev_edge, criteria = "min_dist"):
 
@@ -319,5 +318,5 @@ def read_instance(path = None):
 instance = read_instance()
 solver = Solver(instance)
 
-flows = solver.solve(criteria="max_cap", order=True, time_limit= 1.4)
+flows = solver.solve(criteria="max_cap", order=True, time_limit= 1.6)
 write_flows(flows)
