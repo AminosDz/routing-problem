@@ -5,8 +5,11 @@ from Demand import Demand
 from Instance import Instance
 from Group import Group
 import sys
+def set_finals(nodes_list, demand):
+    nodes_list[demand.start_id].set_final()
+    nodes_list[demand.end_id].set_final()
 
-def read_instance(path = None):
+def read_instance(path = None, criteria = "min_dist"):
     
     if path:
         f = open(path)
@@ -42,7 +45,16 @@ def read_instance(path = None):
         groups[group_id].add_edge(edge_id)
     
         edges_list[edge_id] = edge_i
-        
+    
+    for i in range(node_count):
+        for n in nodes_list[i].neighbors:
+            if criteria == "min_dist":
+                nodes_list[i].neighbors[n] = \
+                    sorted(nodes_list[i].neighbors[n],key= lambda x: x.distance)
+            elif criteria == "max_cap":
+                nodes_list[i].neighbors[n] = \
+                    sorted(nodes_list[i].neighbors[n],key= lambda x: x.capacity, reverse = True)
+
     for i in range(edge_count +1, edge_count+ constraints_count +1):
         node_id, edge1_id, edge2_id = tuple(map(int,lines[i].strip().split(" ")))
         edges_list[edge1_id].add_constraint(edge2_id)
@@ -52,6 +64,8 @@ def read_instance(path = None):
     for i in range(edge_count+ constraints_count +1, edge_count+ constraints_count + flow_count +1):
         demand_id, start_id, end_id, flow_rate = tuple(map(int,lines[i].strip().split(" ")))
         demand_i = Demand(demand_id, start_id, end_id, flow_rate)
+        
+        set_finals(nodes_list, demand_i)
         demands_list.append(demand_i)
 
     instance = Instance(node_count, edge_count, constraints_count, flow_count,

@@ -1,11 +1,13 @@
 class Node:
 
-    def __init__(self, node_id, SFL = 200, is_sattelite = False) -> None:
+    def __init__(self, node_id, SFL = 200) -> None:
         self.node_id = node_id
-        self.is_sattelite = is_sattelite
+        self.is_final = False
         self.SFL = SFL
         self.neighbors = {}
-        
+
+    def set_final(self):
+        self.is_final = True 
     def add_edge(self, edge):
         other_node = edge.start_id if self.node_id != edge.start_id else edge.end_id
 

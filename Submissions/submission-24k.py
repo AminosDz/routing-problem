@@ -3,22 +3,28 @@ import time
 import random
     
 class Demand:
-    
-    def __init__(self, demand_id, start_id, end_id, flow_rate) -> None:
+
+    def __init__(self, demand_id, start_id, end_id, flow_rate, inverted = False) -> None:
         self.demand_id = demand_id
         self.start_id = start_id
         self.end_id = end_id
         self.flow_rate = flow_rate
+        self.inverted = inverted
     
 class Flow:
-    
+
     def __init__(self, demand, edge_ids) -> None:
         self.flow_id = demand.demand_id
-        self.edge_ids = edge_ids
-        self.start_id = demand.start_id
-        self.end_id = demand.end_id
         self.flow_rate = demand.flow_rate
-    
+        if demand.inverted:
+            self.edge_ids = list(reversed(edge_ids)) 
+            self.start_id = demand.end_id
+            self.end_id = demand.start_id
+        else: 
+            self.edge_ids = edge_ids
+            self.start_id = demand.start_id
+            self.end_id = demand.end_id
+
 class Group:
     
     def __init__(self, group_id, edges_list = [], GFL = 100) -> None:
@@ -98,11 +104,11 @@ class Solver():
         self.instance = instance
         self.cache = {}
     
-    def solve(self, criteria = "max_cap", order = None, time_limit=1.9):
+    def solve(self, tic, criteria = "max_cap", order = None, time_limit=1.9):
         
         flows_list = []
     
-        tic = time.time()
+        
         if order:
             sorted_demands = sorted(self.instance.demands_list,
                 key= lambda d: d.flow_rate, reverse=False)
@@ -111,7 +117,7 @@ class Solver():
     
         for demand in sorted_demands:
             if time.time() - tic < time_limit:
-                flow = self.get_path_bfs(demand, criteria=criteria)
+                flow = self.get_path_bfs(demand, tic, time_limit, criteria=criteria)
                 if flow and self.check_path(flow):
                     flows_list.append(flow)
                     self.update_graph(flow)
@@ -155,9 +161,53 @@ class Solver():
         
         return True
     
-    def get_path_bfs(self, demand, criteria = "max_cap"):
-        if self.instance.nodes_list[demand.start_id].SFL <= 0:
+    def get_level(self, node_id, level = 1):
+        
+        all_parents = []
+
+        parents = { p: set([node_id]) for p in self.instance.nodes_list[node_id].neighbors.keys()}
+        all_parents.append(parents)
+        
+        for l in range(level-1):
+            
+            parents={}
+            for i in all_parents[-1]:
+                for j in self.instance.nodes_list[i].neighbors:
+                    parents.setdefault(j,set()).add(i)
+            
+            all_parents.append(parents)
+        
+        return all_parents
+
+    def get_path_bfs(self, demand, tic, time_limit, criteria = "max_cap"):
+        if self.instance.nodes_list[demand.start_id].SFL <= 0 or \
+            self.instance.nodes_list[demand.end_id].SFL <= 0:
             return None
+        
+        start_parents = self.get_level(demand.start_id, level=2)
+        end_parents = self.get_level(demand.end_id, level= 2)
+        
+        if sum([len(s) for s in start_parents]) > sum([len(s) for s in end_parents]):
+            demand.start_id, demand.end_id = demand.end_id, demand.start_id
+            demand.inverted=True
+            
+            parents = start_parents[0]
+            # check that we have n-2 parents 
+            if len(start_parents) > 1:
+                parents2 = start_parents[1]
+            else:
+                parents2 = {}
+            
+        else :
+            parents = end_parents[0]
+            # check that we have n-2 parents 
+            if len(end_parents) > 1:
+                parents2 = end_parents[1]
+            else:
+                parents2 = {}
+        
+        parents[demand.end_id] = demand.end_id
+
         visited = set() 
         queue= deque()
     
@@ -165,23 +215,62 @@ class Solver():
         queue.append((demand.start_id, []))
         visited.add(demand.start_id)
         edges_list = []
-        while queue:
+        while queue and (time.time() - tic < time_limit):
     
             #Dequeue a vertex from queue
             n, cur_path = queue.popleft()
             
+            # If this adjacent adjacent node is the destination node,
+            # then return true
+            if n in parents2 and self.instance.nodes_list[n].SFL > 0:
+                for j in parents2[n]:
+                    if j not in visited and self.instance.nodes_list[j].SFL > 0:
+                        possible_edges = self.instance.nodes_list[n].neighbors[j]
+                        prev_edge = self.instance.edges_list[cur_path[-1]] if len(cur_path) else None
+                        chosen_edge = self.choose_edge_bfs(possible_edges,
+                            demand, prev_edge, criteria = criteria)
+
+                        visited.add(n)
+                        
+                        if chosen_edge:
+                            new_path = cur_path.copy()
+                            new_path.append(chosen_edge.edge_id)
+                            
+                            possible_edges2 = self.instance.nodes_list[j].neighbors[demand.end_id]
+                            prev_edge2 = self.instance.edges_list[new_path[-1]] if len(new_path) else None
+                            chosen_edge2 = self.choose_edge_bfs(possible_edges2,
+                                demand, prev_edge2, criteria = criteria)
+                            
+                            visited.add(j)
+
+                            if chosen_edge2:
+                                new_path2 = new_path.copy()
+                                new_path2.append(chosen_edge2.edge_id)
+                                flow = Flow(demand, new_path2)
+                                
+                                return flow
+
             # If this adjacent node is the destination node,
             # then return true
-            if n == demand.end_id:
-                flow = Flow(demand, cur_path)
-                return flow
-    
+            if n in parents and self.instance.nodes_list[demand.end_id].SFL > 0:
+                if n == demand.end_id:
+                    flow = Flow(demand, cur_path)
+                    return flow
+                else:
+                    possible_edges = self.instance.nodes_list[n].neighbors[demand.end_id]
+                    prev_edge = self.instance.edges_list[cur_path[-1]] if len(cur_path) else None
+                    chosen_edge = self.choose_edge_bfs( possible_edges,
+                        demand, prev_edge, criteria = criteria)
+                    if chosen_edge:
+                        new_path = cur_path.copy()
+                        new_path.append(chosen_edge.edge_id)
+                        flow = Flow(demand, new_path)
+                        return flow
+
             #  Else, continue to do BFS
-            for i in self.instance.nodes_list[n].neighbors:
-                "if (end_node, i) in cache"
+            for i in list(self.instance.nodes_list[n].neighbors.keys())[0:7]:
                 if i not in visited and self.instance.nodes_list[i].SFL > 0:
                     edges_n_i = self.instance.nodes_list[n].neighbors[i]
-                    #print(cur_path)
                     prev_edge = self.instance.edges_list[cur_path[-1]] if len(cur_path) else None
                     chosen_edge = self.choose_edge_bfs(edges_n_i, demand,
                         prev_edge, criteria = criteria)
@@ -214,7 +303,8 @@ class Solver():
             # Verify edge capacity
             if edge.can_add_demand(demand):
                 possible_edges.append(edge)
-                last_edge = edge
+                return edge
+                """last_edge = edge
     
                 if not min_dist_edge or edge.distance < min_dist_edge.distance:
                     min_dist_edge = edge 
@@ -223,14 +313,14 @@ class Solver():
                     max_capacity_edge = edge
     
                 if criteria == "first_found":
-                    return last_edge
+                    return last_edge"""
     
-        if criteria == "min_dist":
+        """if criteria == "min_dist":
             return min_dist_edge
         elif criteria == "max_cap":
             return max_capacity_edge
-        else:
-            return None if len(possible_edges) == 0 else possible_edges[0]
+        else:"""
+        return None if len(possible_edges) == 0 else possible_edges[0]
     
     
 def write_flows(flows):
@@ -241,7 +331,7 @@ def write_flows(flows):
     
 import sys
     
-def read_instance(path = None):
+def read_instance(path = None, criteria = "min_dist"):
     
     if path:
         f = open(path)
@@ -277,7 +367,16 @@ def read_instance(path = None):
         groups[group_id].add_edge(edge_id)
     
         edges_list[edge_id] = edge_i
-        
+    
+    for i in range(node_count):
+        for n in nodes_list[i].neighbors:
+            if criteria == "min_dist":
+                nodes_list[i].neighbors[n] = \
+                    sorted(nodes_list[i].neighbors[n],key= lambda x: x.distance)
+            elif criteria == "max_cap":
+                nodes_list[i].neighbors[n] = \
+                    sorted(nodes_list[i].neighbors[n],key= lambda x: x.capacity, reverse = True)
+
     for i in range(edge_count +1, edge_count+ constraints_count +1):
         node_id, edge1_id, edge2_id = tuple(map(int,lines[i].strip().split(" ")))
         edges_list[edge1_id].add_constraint(edge2_id)
@@ -294,8 +393,11 @@ def read_instance(path = None):
     
     return instance
     
-instance = read_instance()
+criteria="min_dist"
+first_time = time.time()
+instance = read_instance(criteria=criteria)
 solver = Solver(instance)
-    
-flows = solver.solve(criteria="min_dist", order=True, time_limit= 1.5)
+
+flows = solver.solve(first_time, criteria=criteria, order=True, time_limit= 1.8)
+
 write_flows(flows)
