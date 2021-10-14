@@ -268,7 +268,8 @@ class Solver():
                         return flow
 
             #  Else, continue to do BFS
-            for i in random.sample(list(self.instance.nodes_list[n].neighbors.keys()), 7):
+            n_keys = list(self.instance.nodes_list[n].neighbors.keys())
+            for i in n_keys[0:7]:# random.sample(n_keys, len(n_keys)):
                 if i not in visited and self.instance.nodes_list[i].SFL > 0:
                     edges_n_i = self.instance.nodes_list[n].neighbors[i]
                     prev_edge = self.instance.edges_list[cur_path[-1]] if len(cur_path) else None
@@ -304,22 +305,7 @@ class Solver():
             if edge.can_add_demand(demand):
                 possible_edges.append(edge)
                 return edge
-                """last_edge = edge
-    
-                if not min_dist_edge or edge.distance < min_dist_edge.distance:
-                    min_dist_edge = edge 
-    
-                if not max_capacity_edge or edge.capacity > max_capacity_edge.capacity:
-                    max_capacity_edge = edge
-    
-                if criteria == "first_found":
-                    return last_edge"""
-    
-        """if criteria == "min_dist":
-            return min_dist_edge
-        elif criteria == "max_cap":
-            return max_capacity_edge
-        else:"""
+                
         return None if len(possible_edges) == 0 else possible_edges[0]
     
     
@@ -393,11 +379,11 @@ def read_instance(path = None, criteria = "min_dist"):
     
     return instance
     
-criteria="min_dist"
+criteria="max_cap"
 first_time = time.time()
 instance = read_instance(criteria=criteria)
 solver = Solver(instance)
 
-flows = solver.solve(first_time, criteria=criteria, order=True, time_limit= 1.8)
+flows = solver.solve(first_time, criteria=criteria, order=True, time_limit= 1.87)
 
 write_flows(flows)

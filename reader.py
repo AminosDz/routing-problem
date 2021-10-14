@@ -47,6 +47,10 @@ def read_instance(path = None, criteria = "min_dist"):
         edges_list[edge_id] = edge_i
     
     for i in range(node_count):
+        
+        sorted_neighbors = sorted(nodes_list[i].neighbors, key= lambda x: len(nodes_list[x].neighbors), reverse=True) # Sort the values
+        nodes_list[i].neighbors = sorted_neighbors
+
         for n in nodes_list[i].neighbors:
             if criteria == "min_dist":
                 nodes_list[i].neighbors[n] = \

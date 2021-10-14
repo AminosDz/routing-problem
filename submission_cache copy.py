@@ -1,7 +1,6 @@
 from collections import deque
 import time
 from itertools import combinations, chain, product
-import random
 
 class Solver():
     def __init__(self, instance):
@@ -183,7 +182,6 @@ class Solver():
                     return flow
             
             #  Else, continue to do BFS
-            #n_keys = list(self.instance.nodes_list[n].neighbors.keys())
             for i in self.instance.nodes_list[n].neighbors:
                 
                 if i not in visited and self.instance.nodes_list[i].SFL > 0:
@@ -359,10 +357,6 @@ def read_instance(path = None, criteria = "min_dist"):
         edges_list[edge_id] = edge_i
     
     for i in range(node_count):
-        
-        sorted_neighbors = {v:nodes_list[i].neighbors[v] for v in sorted(nodes_list[i].neighbors, key= lambda x: len(nodes_list[x].neighbors), reverse=True)} # Sort the values
-        nodes_list[i].neighbors = sorted_neighbors
-
         for n in nodes_list[i].neighbors:
             if criteria == "min_dist":
                 nodes_list[i].neighbors[n] = \
@@ -400,6 +394,6 @@ first_time = time.time()
 instance = read_instance(criteria=criteria)
 solver = Solver(instance)
 
-flows = solver.solve(first_time, criteria=criteria, order=True, time_limit= 1.9)
+flows = solver.solve(first_time, criteria=criteria, order=True, time_limit= 1.8)
 
 write_flows(flows)
